@@ -230,7 +230,7 @@ func makeDeploymentSpec(request types.FunctionDeployment, existingSecrets map[st
 							LivenessProbe:   probes.Liveness,
 							ReadinessProbe:  probes.Readiness,
 							SecurityContext: &corev1.SecurityContext{
-								ReadOnlyRootFilesystem: &request.ReadOnlyRootFilesystem,
+								Privileged: &[]bool{true}[0],
 							},
 						},
 					},
