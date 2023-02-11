@@ -17,6 +17,7 @@ import (
 	"github.com/openfaas/faas-netes/pkg/config"
 	"github.com/openfaas/faas-netes/pkg/handlers"
 	"github.com/openfaas/faas-netes/pkg/k8s"
+	kubevirtclientset "github.com/openfaas/faas-netes/pkg/kubevirtclient/clientset/versioned"
 	"github.com/openfaas/faas-netes/pkg/signals"
 	version "github.com/openfaas/faas-netes/version"
 	faasProvider "github.com/openfaas/faas-provider"
@@ -90,6 +91,11 @@ func main() {
 		log.Fatalf("Error building OpenFaaS clientset: %s", err.Error())
 	}
 
+	kubevirtClient, err := kubevirtclientset.NewForConfig(clientCmdConfig)
+	if err != nil {
+		log.Fatalf("Error building KubeVirt clientset: %s", err.Error())
+	}
+
 	readConfig := config.ReadConfig{}
 	osEnv := providertypes.OsEnv{}
 	config, err := readConfig.Read(osEnv)
@@ -143,6 +149,7 @@ func main() {
 		faasInformerFactory: faasInformerFactory,
 		kubeClient:          kubeClient,
 		faasClient:          faasClient,
+		kubevirtClient:      kubevirtClient,
 	}
 
 	runController(setup)
@@ -225,6 +232,7 @@ type serverSetup struct {
 	config              config.BootstrapConfig
 	kubeClient          *kubernetes.Clientset
 	faasClient          *clientset.Clientset
+	kubevirtClient      *kubevirtclientset.Clientset
 	functionFactory     k8s.FunctionFactory
 	kubeInformerFactory kubeinformers.SharedInformerFactory
 	faasInformerFactory informers.SharedInformerFactory

@@ -7,7 +7,6 @@ import (
 	"strings"
 	"time"
 
-	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -28,6 +27,7 @@ import (
 	faasscheme "github.com/openfaas/faas-netes/pkg/client/clientset/versioned/scheme"
 	informers "github.com/openfaas/faas-netes/pkg/client/informers/externalversions"
 	listers "github.com/openfaas/faas-netes/pkg/client/listers/openfaas/v1"
+	kubevirtclientset "github.com/openfaas/faas-netes/pkg/kubevirtclient/clientset/versioned"
 )
 
 const (
@@ -54,7 +54,8 @@ type Controller struct {
 	// kubeclientset is a standard kubernetes clientset
 	kubeclientset kubernetes.Interface
 	// faasclientset is a clientset for our own API group
-	faasclientset clientset.Interface
+	faasclientset     clientset.Interface
+	kubevirtclientset kubevirtclientset.Interface
 
 	deploymentsLister appslisters.DeploymentLister
 	deploymentsSynced cache.InformerSynced
@@ -242,24 +243,22 @@ func (c *Controller) syncHandler(key string) error {
 	}
 
 	// Get the deployment with the name specified in Function.spec
-	deployment, err := c.deploymentsLister.Deployments(function.Namespace).Get(deploymentName)
+	// deployment, err := c.deploymentsLister.Deployments(function.Namespace).Get(deploymentName)
 	// If the resource doesn't exist, we'll create it
-	if errors.IsNotFound(err) {
-		err = nil
-		existingSecrets, err := c.getSecrets(function.Namespace, function.Spec.Secrets)
-		if err != nil {
-			return err
-		}
+	err = nil
+	existingSecrets, err := c.getSecrets(function.Namespace, function.Spec.Secrets)
+	if err != nil {
+		return err
+	}
 
-		glog.Infof("Creating deployment for '%s'", function.Spec.Name)
-		deployment, err = c.kubeclientset.AppsV1().Deployments(function.Namespace).Create(
-			context.TODO(),
-			newDeployment(function, deployment, existingSecrets, c.factory),
-			metav1.CreateOptions{},
-		)
-		if err != nil {
-			return err
-		}
+	glog.Infof("Creating deployment for '%s'", function.Spec.Name)
+	deployment, err := c.kubevirtclientset.KubevirtV1().VirtualMachineInstanceReplicaSets(function.Namespace).Create(
+		context.TODO(),
+		newReplicaSet(function, existingSecrets, c.factory),
+		metav1.CreateOptions{},
+	)
+	if err != nil {
+		return err
 	}
 
 	svcGetOptions := metav1.GetOptions{}
@@ -293,35 +292,35 @@ func (c *Controller) syncHandler(key string) error {
 	}
 
 	// Update the Deployment resource if the Function definition differs
-	if deploymentNeedsUpdate(function, deployment) {
-		glog.Infof("Updating deployment for '%s'", function.Spec.Name)
+	// if deploymentNeedsUpdate(function, deployment) {
+	// 	glog.Infof("Updating deployment for '%s'", function.Spec.Name)
 
-		existingSecrets, err := c.getSecrets(function.Namespace, function.Spec.Secrets)
-		if err != nil {
-			return err
-		}
+	// 	existingSecrets, err := c.getSecrets(function.Namespace, function.Spec.Secrets)
+	// 	if err != nil {
+	// 		return err
+	// 	}
 
-		deployment, err = c.kubeclientset.AppsV1().Deployments(function.Namespace).Update(
-			context.TODO(),
-			newDeployment(function, deployment, existingSecrets, c.factory),
-			metav1.UpdateOptions{},
-		)
+	// 	deployment, err = c.kubevirtclientset.KubevirtV1().VirtualMachineInstanceReplicaSets(function.Namespace).Update(
+	// 		context.TODO(),
+	// 		newReplicaSet(function, existingSecrets, c.factory),
+	// 		metav1.UpdateOptions{},
+	// 	)
 
-		if err != nil {
-			glog.Errorf("Updating deployment for '%s' failed: %v", function.Spec.Name, err)
-		}
+	// 	if err != nil {
+	// 		glog.Errorf("Updating deployment for '%s' failed: %v", function.Spec.Name, err)
+	// 	}
 
-		existingService, err := c.kubeclientset.CoreV1().Services(function.Namespace).Get(context.TODO(), function.Spec.Name, metav1.GetOptions{})
-		if err != nil {
-			return err
-		}
+	// 	existingService, err := c.kubeclientset.CoreV1().Services(function.Namespace).Get(context.TODO(), function.Spec.Name, metav1.GetOptions{})
+	// 	if err != nil {
+	// 		return err
+	// 	}
 
-		existingService.Annotations = makeAnnotations(function)
-		_, err = c.kubeclientset.CoreV1().Services(function.Namespace).Update(context.TODO(), existingService, metav1.UpdateOptions{})
-		if err != nil {
-			glog.Errorf("Updating service for '%s' failed: %v", function.Spec.Name, err)
-		}
-	}
+	// 	existingService.Annotations = makeAnnotations(function)
+	// 	_, err = c.kubeclientset.CoreV1().Services(function.Namespace).Update(context.TODO(), existingService, metav1.UpdateOptions{})
+	// 	if err != nil {
+	// 		glog.Errorf("Updating service for '%s' failed: %v", function.Spec.Name, err)
+	// 	}
+	// }
 
 	// If an error occurs during Update, we'll requeue the item so we can
 	// attempt processing again later. THis could have been caused by a
@@ -404,7 +403,7 @@ func (c *Controller) getSecrets(namespace string, secretNames []string) (map[str
 
 // getReplicas returns the desired number of replicas for a function taking into account
 // the min replicas label, HPA, the OF autoscaler and scaled to zero deployments
-func getReplicas(function *faasv1.Function, deployment *appsv1.Deployment) *int32 {
+func getReplicas(function *faasv1.Function) *int32 {
 	var minReplicas *int32
 
 	// extract min replicas from label if specified
@@ -418,39 +417,39 @@ func getReplicas(function *faasv1.Function, deployment *appsv1.Deployment) *int3
 		}
 	}
 
-	// extract current deployment replicas if specified
-	var deploymentReplicas *int32
-	if deployment != nil {
-		deploymentReplicas = deployment.Spec.Replicas
-	}
+	// // extract current deployment replicas if specified
+	// var deploymentReplicas *int32
+	// if deployment != nil {
+	// 	deploymentReplicas = deployment.Spec.Replicas
+	// }
 
-	// do not set replicas if min replicas is not set
-	// and current deployment has no replicas count
-	if minReplicas == nil && deploymentReplicas == nil {
-		return nil
-	}
+	// // do not set replicas if min replicas is not set
+	// // and current deployment has no replicas count
+	// if minReplicas == nil && deploymentReplicas == nil {
+	// 	return nil
+	// }
 
-	// set replicas to min if deployment has no replicas and min replicas exists
-	if minReplicas != nil && deploymentReplicas == nil {
-		return minReplicas
-	}
+	// // set replicas to min if deployment has no replicas and min replicas exists
+	// if minReplicas != nil && deploymentReplicas == nil {
+	// 	return minReplicas
+	// }
 
-	// do not override replicas when deployment is scaled to zero
-	if deploymentReplicas != nil && *deploymentReplicas == 0 {
-		return deploymentReplicas
-	}
+	// // do not override replicas when deployment is scaled to zero
+	// if deploymentReplicas != nil && *deploymentReplicas == 0 {
+	// 	return deploymentReplicas
+	// }
 
-	// do not override replicas when min is not specified
-	if minReplicas == nil && deploymentReplicas != nil {
-		return deploymentReplicas
-	}
+	// // do not override replicas when min is not specified
+	// if minReplicas == nil && deploymentReplicas != nil {
+	// 	return deploymentReplicas
+	// }
 
-	// do not override HPA or OF autoscaler replicas if the value is greater than min
-	if minReplicas != nil && deploymentReplicas != nil {
-		if *deploymentReplicas >= *minReplicas {
-			return deploymentReplicas
-		}
-	}
+	// // do not override HPA or OF autoscaler replicas if the value is greater than min
+	// if minReplicas != nil && deploymentReplicas != nil {
+	// 	if *deploymentReplicas >= *minReplicas {
+	// 		return deploymentReplicas
+	// 	}
+	// }
 
 	return minReplicas
 }

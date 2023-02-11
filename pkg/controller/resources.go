@@ -4,11 +4,12 @@ import (
 	faasv1 "github.com/openfaas/faas-netes/pkg/apis/openfaas/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
+	kubevirtiov1 "kubevirt.io/api/core/v1"
 )
 
 // makeResources creates deployment resource limits and requests requirements from function specs
-func makeResources(function *faasv1.Function) (*corev1.ResourceRequirements, error) {
-	resources := &corev1.ResourceRequirements{
+func makeResources(function *faasv1.Function) (*kubevirtiov1.ResourceRequirements, error) {
+	resources := &kubevirtiov1.ResourceRequirements{
 		Limits:   corev1.ResourceList{},
 		Requests: corev1.ResourceList{},
 	}

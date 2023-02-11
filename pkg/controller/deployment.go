@@ -1,7 +1,6 @@
 package controller
 
 import (
-	"context"
 	"encoding/json"
 	"strings"
 
@@ -12,32 +11,31 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/apimachinery/pkg/util/intstr"
 	glog "k8s.io/klog"
+	kubevirtiov1 "kubevirt.io/api/core/v1"
 )
 
 const (
 	annotationFunctionSpec = "com.openfaas.function.spec"
 )
 
-// newDeployment creates a new Deployment for a Function resource. It also sets
+// newReplicaSet creates a new ReplicaSet for a Function resource. It also sets
 // the appropriate OwnerReferences on the resource so handleObject can discover
 // the Function resource that 'owns' it.
-func newDeployment(
+func newReplicaSet(
 	function *faasv1.Function,
-	existingDeployment *appsv1.Deployment,
 	existingSecrets map[string]*corev1.Secret,
-	factory FunctionFactory) *appsv1.Deployment {
+	factory FunctionFactory) *kubevirtiov1.VirtualMachineInstanceReplicaSet {
 
-	ctx := context.TODO()
-	envVars := makeEnvVars(function)
+	// ctx := context.TODO()
+	// envVars := makeEnvVars(function)
 	labels := makeLabels(function)
 	nodeSelector := makeNodeSelector(function.Spec.Constraints)
-	probes, err := factory.MakeProbes(function)
-	if err != nil {
-		glog.Warningf("Function %s probes parsing failed: %v",
-			function.Spec.Name, err)
-	}
+	// probes, err := factory.MakeProbes(function)
+	// if err != nil {
+	// 	glog.Warningf("Function %s probes parsing failed: %v",
+	// 		function.Spec.Name, err)
+	// }
 
 	resources, err := makeResources(function)
 	if err != nil {
@@ -47,9 +45,9 @@ func newDeployment(
 
 	annotations := makeAnnotations(function)
 
-	allowPrivilegeEscalation := false
+	// allowPrivilegeEscalation := false
 
-	deploymentSpec := &appsv1.Deployment{
+	replicationSet := &kubevirtiov1.VirtualMachineInstanceReplicaSet{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        function.Spec.Name,
 			Annotations: annotations,
@@ -62,102 +60,101 @@ func newDeployment(
 				}),
 			},
 		},
-		Spec: appsv1.DeploymentSpec{
-			Replicas: getReplicas(function, existingDeployment),
-			Strategy: appsv1.DeploymentStrategy{
-				Type: appsv1.RollingUpdateDeploymentStrategyType,
-				RollingUpdate: &appsv1.RollingUpdateDeployment{
-					MaxUnavailable: &intstr.IntOrString{
-						Type:   intstr.Int,
-						IntVal: int32(0),
-					},
-					MaxSurge: &intstr.IntOrString{
-						Type:   intstr.Int,
-						IntVal: int32(1),
-					},
-				},
-			},
+		Spec: kubevirtiov1.VirtualMachineInstanceReplicaSetSpec{
+			Replicas: getReplicas(function),
 			Selector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{
 					"app":        function.Spec.Name,
 					"controller": function.Name,
 				},
 			},
-			RevisionHistoryLimit: int32p(5),
-			Template: corev1.PodTemplateSpec{
+			Template: &kubevirtiov1.VirtualMachineInstanceTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels:      labels,
 					Annotations: annotations,
 				},
-				Spec: corev1.PodSpec{
-					NodeSelector: nodeSelector,
-					Containers: []corev1.Container{
-						{
-							Name:  function.Spec.Name,
-							Image: function.Spec.Image,
-							Ports: []corev1.ContainerPort{
-								{ContainerPort: int32(functionPort), Protocol: corev1.ProtocolTCP},
-							},
-							ImagePullPolicy: corev1.PullPolicy(factory.Factory.Config.ImagePullPolicy),
-							Env:             envVars,
-							Resources:       *resources,
-							LivenessProbe:   probes.Liveness,
-							ReadinessProbe:  probes.Readiness,
-							SecurityContext: &corev1.SecurityContext{
-								AllowPrivilegeEscalation: &allowPrivilegeEscalation,
+				Spec: kubevirtiov1.VirtualMachineInstanceSpec{
+					Domain: kubevirtiov1.DomainSpec{
+						Resources: *resources,
+						Devices: kubevirtiov1.Devices{
+							Disks: []kubevirtiov1.Disk{
+								kubevirtiov1.Disk{
+									Name: "containerdisk",
+									DiskDevice: kubevirtiov1.DiskDevice{
+										Disk: &kubevirtiov1.DiskTarget{
+											Bus: kubevirtiov1.DiskBusVirtio,
+										},
+									},
+								},
 							},
 						},
 					},
+					NodeSelector: nodeSelector,
+					Volumes: []kubevirtiov1.Volume{
+						kubevirtiov1.Volume{
+							Name: "containerdisk",
+							VolumeSource: kubevirtiov1.VolumeSource{
+								ContainerDisk: &kubevirtiov1.ContainerDiskSource{
+									Image:           function.Spec.Image,
+									ImagePullPolicy: corev1.PullPolicy(factory.Factory.Config.ImagePullPolicy),
+								},
+							},
+						},
+					},
+					// LivenessProbe:   probes.Liveness,
+					// ReadinessProbe:  probes.Readiness,
+					// Hostname: function.Spec.Name,
+					// Networks: []kubevirtiov1.Network{},
 				},
 			},
 		},
 	}
 
-	factory.ConfigureReadOnlyRootFilesystem(function, deploymentSpec)
-	factory.ConfigureContainerUserID(deploymentSpec)
+	// factory.ConfigureReadOnlyRootFilesystem(function, deploymentSpec)
+	// factory.ConfigureContainerUserID(deploymentSpec)
 
-	var currentAnnotations map[string]string
-	if existingDeployment != nil {
-		currentAnnotations = existingDeployment.Annotations
-	}
+	// var currentAnnotations map[string]string
+	// if existingDeployment != nil {
+	// 	currentAnnotations = existingDeployment.Annotations
+	// }
 
 	// compare the annotations from args to the cache copy of the deployment annotations
 	// at this point we have already updated the annotations to the new value, if we
 	// compare to that it will produce an empty list
-	profileNamespace := factory.Factory.Config.ProfilesNamespace
-	profileList, err := factory.GetProfilesToRemove(ctx, profileNamespace, annotations, currentAnnotations)
-	if err != nil {
-		// TODO: a simple warning doesn't seem strong enough if a profile can't be found or there is
-		// some other error
-		glog.Warningf("Function %s can not retrieve required Profiles in %s: %v", function.Spec.Name, profileNamespace, err)
-	}
-	for _, profile := range profileList {
-		factory.RemoveProfile(profile, deploymentSpec)
-	}
+	// profileNamespace := factory.Factory.Config.ProfilesNamespace
+	// profileList, err := factory.GetProfilesToRemove(ctx, profileNamespace, annotations)
+	// if err != nil {
+	// 	// TODO: a simple warning doesn't seem strong enough if a profile can't be found or there is
+	// 	// some other error
+	// 	glog.Warningf("Function %s can not retrieve required Profiles in %s: %v", function.Spec.Name, profileNamespace, err)
+	// }
+	// for _, profile := range profileList {
+	// 	factory.RemoveProfile(profile, deploymentSpec)
+	// }
 
 	if _, exists := annotations[k8s.ProfileAnnotationKey]; !exists {
 		glog.Infof("Function %s: no profiles specified", function.Spec.Name)
 	}
 
-	profileList, err = factory.GetProfiles(ctx, profileNamespace, annotations)
-	if err != nil {
-		// TODO: a simple warning doesn't seem strong enough if a profile can't be found or there is
-		// some other error
-		glog.Warningf("Function %s can not retrieve required Profiles in %s: %v", function.Spec.Name, profileNamespace, err)
-	}
+	// profileList, err = factory.GetProfiles(ctx, profileNamespace, annotations)
+	// if err != nil {
+	// 	// TODO: a simple warning doesn't seem strong enough if a profile can't be found or there is
+	// 	// some other error
+	// 	glog.Warningf("Function %s can not retrieve required Profiles in %s: %v", function.Spec.Name, profileNamespace, err)
+	// }
 	// TODO: remove this or refactor to just print names
-	glog.Infof("Function %s: Applying profiles %+v", function.Spec.Name, profileList)
-	for _, profile := range profileList {
-		factory.ApplyProfile(profile, deploymentSpec)
-	}
+	// glog.Infof("Function %s: Applying profiles %+v", function.Spec.Name, profileList)
+	// for _, profile := range profileList {
+	// 	factory.ApplyProfile(profile, deploymentSpec)
+	// }
 
-	if err := UpdateSecrets(function, deploymentSpec, existingSecrets); err != nil {
-		// TODO: a simple warning doesn't seem strong enough if we can't update the secrets
-		glog.Warningf("Function %s secrets update failed: %v",
-			function.Spec.Name, err)
-	}
+	// if err := UpdateSecrets(function, deploymentSpec, existingSecrets); err != nil {
+	// 	// TODO: a simple warning doesn't seem strong enough if we can't update the secrets
+	// 	glog.Warningf("Function %s secrets update failed: %v",
+	// 		function.Spec.Name, err)
+	// }
 
-	return deploymentSpec
+	return replicationSet
 }
 
 func makeEnvVars(function *faasv1.Function) []corev1.EnvVar {
