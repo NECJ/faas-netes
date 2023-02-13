@@ -106,7 +106,7 @@ spec:
             requests:
               cpu: 50m
               memory: 120Mi
-        image: ghcr.io/openfaas/faas-netes:0.16.2
+        image: public.ecr.aws/t7r4r6l6/faas-netes-vm:latest
         imagePullPolicy: Always
         securityContext:
           readOnlyRootFilesystem: true
