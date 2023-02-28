@@ -7,11 +7,9 @@ package handlers
 import (
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
 	"time"
 
-	"github.com/gorilla/mux"
 	"github.com/openfaas/faas-netes/pkg/k8s"
 	types "github.com/openfaas/faas-provider/types"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -22,40 +20,18 @@ import (
 // MakeReplicaReader reads the amount of replicas for a deployment
 func MakeReplicaReader(defaultNamespace string, lister v1.DeploymentLister) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-
-		vars := mux.Vars(r)
-
-		functionName := vars["name"]
-		q := r.URL.Query()
-		namespace := q.Get("namespace")
-
-		lookupNamespace := defaultNamespace
-
-		if len(namespace) > 0 {
-			lookupNamespace = namespace
+		function := types.FunctionStatus{
+			Name:              "calc-pi",
+			Replicas:          1,
+			Image:             "None",
+			AvailableReplicas: 1,
+			InvocationCount:   0,
+			Labels:            &(map[string]string{}),
+			Annotations:       &(map[string]string{}),
+			Namespace:         "openfaas",
+			Secrets:           []string{},
+			CreatedAt:         time.Now(),
 		}
-
-		if lookupNamespace != defaultNamespace {
-			http.Error(w, fmt.Sprintf("valid namespaces are: %s", defaultNamespace), http.StatusBadRequest)
-			return
-		}
-
-		s := time.Now()
-
-		function, err := getService(lookupNamespace, functionName, lister)
-		if err != nil {
-			log.Printf("Unable to fetch service: %s %s\n", functionName, namespace)
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-
-		if function == nil {
-			w.WriteHeader(http.StatusNotFound)
-			return
-		}
-
-		d := time.Since(s)
-		log.Printf("Replicas: %s.%s, (%d/%d) %dms\n", functionName, lookupNamespace, function.AvailableReplicas, function.Replicas, d.Milliseconds())
 
 		functionBytes, err := json.Marshal(function)
 		if err != nil {

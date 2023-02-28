@@ -6,9 +6,7 @@ package handlers
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 
 	"github.com/openfaas/faas-provider/types"
@@ -21,71 +19,8 @@ import (
 // MakeDeleteHandler delete a function
 func MakeDeleteHandler(defaultNamespace string, clientset *kubernetes.Clientset) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		defer r.Body.Close()
-
-		q := r.URL.Query()
-		namespace := q.Get("namespace")
-
-		lookupNamespace := defaultNamespace
-
-		if len(namespace) > 0 {
-			lookupNamespace = namespace
-		}
-
-		if lookupNamespace == "kube-system" {
-			http.Error(w, "unable to list within the kube-system namespace", http.StatusUnauthorized)
-			return
-		}
-
-		if lookupNamespace != defaultNamespace {
-			http.Error(w, fmt.Sprintf("valid namespaces are: %s", defaultNamespace), http.StatusBadRequest)
-			return
-		}
-
-		body, _ := ioutil.ReadAll(r.Body)
-
-		request := types.DeleteFunctionRequest{}
-		err := json.Unmarshal(body, &request)
-		if err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			return
-		}
-
-		if len(request.FunctionName) == 0 {
-			w.WriteHeader(http.StatusBadRequest)
-			return
-		}
-
-		getOpts := metav1.GetOptions{}
-
-		// This makes sure we don't delete non-labelled deployments
-		deployment, findDeployErr := clientset.AppsV1().
-			Deployments(lookupNamespace).
-			Get(context.TODO(), request.FunctionName, getOpts)
-
-		if findDeployErr != nil {
-			if errors.IsNotFound(findDeployErr) {
-				w.WriteHeader(http.StatusNotFound)
-			} else {
-				w.WriteHeader(http.StatusInternalServerError)
-			}
-
-			w.Write([]byte(findDeployErr.Error()))
-			return
-		}
-
-		if isFunction(deployment) {
-			err := deleteFunction(lookupNamespace, clientset, request, w)
-			if err != nil {
-				return
-			}
-		} else {
-			w.WriteHeader(http.StatusBadRequest)
-
-			w.Write([]byte("Not a function: " + request.FunctionName))
-			return
-		}
-
+		// Hypervisor only supports a single function currently
+		// TODO: Support deleting functions
 		w.WriteHeader(http.StatusAccepted)
 	}
 }

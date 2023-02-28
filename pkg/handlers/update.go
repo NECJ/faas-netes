@@ -5,9 +5,7 @@ package handlers
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"time"
@@ -21,70 +19,6 @@ import (
 // MakeUpdateHandler update specified function
 func MakeUpdateHandler(defaultNamespace string, factory k8s.FunctionFactory) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		ctx := r.Context()
-		if r.Body != nil {
-			defer r.Body.Close()
-		}
-
-		body, _ := ioutil.ReadAll(r.Body)
-
-		request := types.FunctionDeployment{}
-		err := json.Unmarshal(body, &request)
-		if err != nil {
-			wrappedErr := fmt.Errorf("unable to unmarshal request: %s", err.Error())
-			http.Error(w, wrappedErr.Error(), http.StatusBadRequest)
-			return
-		}
-
-		if err := ValidateDeployRequest(&request); err != nil {
-			wrappedErr := fmt.Errorf("validation failed: %s", err.Error())
-			http.Error(w, wrappedErr.Error(), http.StatusBadRequest)
-			return
-		}
-
-		lookupNamespace := defaultNamespace
-		if len(request.Namespace) > 0 {
-			lookupNamespace = request.Namespace
-		}
-
-		if lookupNamespace != defaultNamespace {
-			http.Error(w, fmt.Sprintf("valid namespaces are: %s", defaultNamespace), http.StatusBadRequest)
-			return
-		}
-
-		if lookupNamespace == "kube-system" {
-			http.Error(w, "unable to list within the kube-system namespace", http.StatusUnauthorized)
-			return
-		}
-
-		annotations, err := buildAnnotations(request)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-
-		if err, status := updateDeploymentSpec(ctx, lookupNamespace, factory, request, annotations); err != nil {
-			if !k8s.IsNotFound(err) {
-				log.Printf("error updating deployment: %s.%s, error: %s\n", request.Service, lookupNamespace, err)
-
-				return
-			}
-
-			wrappedErr := fmt.Errorf("unable update Deployment: %s.%s, error: %s", request.Service, lookupNamespace, err.Error())
-			http.Error(w, wrappedErr.Error(), status)
-			return
-		}
-
-		if err, status := updateService(lookupNamespace, factory, request, annotations); err != nil {
-			if !k8s.IsNotFound(err) {
-				log.Printf("error updating service: %s.%s, error: %s\n", request.Service, lookupNamespace, err)
-			}
-
-			wrappedErr := fmt.Errorf("unable update Service: %s.%s, error: %s", request.Service, request.Namespace, err.Error())
-			http.Error(w, wrappedErr.Error(), status)
-			return
-		}
-
 		w.WriteHeader(http.StatusAccepted)
 	}
 }

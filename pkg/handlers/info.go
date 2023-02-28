@@ -14,7 +14,7 @@ const (
 	//OrchestrationIdentifier identifier string for provider orchestration
 	OrchestrationIdentifier = "kubernetes"
 	//ProviderName name of the provider
-	ProviderName = "faas-netes"
+	ProviderName = "faas-netes-hypervisor"
 )
 
 //MakeInfoHandler creates handler for /system/info endpoint

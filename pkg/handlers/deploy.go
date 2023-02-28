@@ -5,10 +5,7 @@
 package handlers
 
 import (
-	"context"
-	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"sort"
@@ -31,102 +28,9 @@ const initialReplicasCount = 1
 
 // MakeDeployHandler creates a handler to create new functions in the cluster
 func MakeDeployHandler(functionNamespace string, factory k8s.FunctionFactory) http.HandlerFunc {
-	secrets := k8s.NewSecretsClient(factory.Client)
-
 	return func(w http.ResponseWriter, r *http.Request) {
-		ctx := r.Context()
-
-		if r.Body != nil {
-			defer r.Body.Close()
-		}
-
-		body, _ := ioutil.ReadAll(r.Body)
-
-		request := types.FunctionDeployment{}
-		err := json.Unmarshal(body, &request)
-		if err != nil {
-			wrappedErr := fmt.Errorf("failed to unmarshal request: %s", err.Error())
-			http.Error(w, wrappedErr.Error(), http.StatusBadRequest)
-			return
-		}
-
-		if err := ValidateDeployRequest(&request); err != nil {
-			wrappedErr := fmt.Errorf("validation failed: %s", err.Error())
-			http.Error(w, wrappedErr.Error(), http.StatusBadRequest)
-			return
-		}
-
-		namespace := functionNamespace
-		if len(request.Namespace) > 0 {
-			namespace = request.Namespace
-		}
-
-		if namespace != functionNamespace {
-			http.Error(w, fmt.Sprintf("valid namespaces are: %s", functionNamespace), http.StatusBadRequest)
-			return
-		}
-
-		existingSecrets, err := secrets.GetSecrets(namespace, request.Secrets)
-		if err != nil {
-			wrappedErr := fmt.Errorf("unable to fetch secrets: %s", err.Error())
-			http.Error(w, wrappedErr.Error(), http.StatusBadRequest)
-			return
-		}
-
-		deploymentSpec, specErr := makeDeploymentSpec(request, existingSecrets, factory)
-
-		var profileList []k8s.Profile
-		if request.Annotations != nil {
-			profileNamespace := factory.Config.ProfilesNamespace
-			profileList, err = factory.GetProfiles(ctx, profileNamespace, *request.Annotations)
-			if err != nil {
-				wrappedErr := fmt.Errorf("failed create Deployment spec: %s", err.Error())
-				log.Println(wrappedErr)
-				http.Error(w, wrappedErr.Error(), http.StatusBadRequest)
-				return
-			}
-		}
-		for _, profile := range profileList {
-			factory.ApplyProfile(profile, deploymentSpec)
-		}
-
-		if specErr != nil {
-			wrappedErr := fmt.Errorf("failed create Deployment spec: %s", specErr.Error())
-			log.Println(wrappedErr)
-			http.Error(w, wrappedErr.Error(), http.StatusBadRequest)
-			return
-		}
-
-		deploy := factory.Client.AppsV1().Deployments(namespace)
-
-		_, err = deploy.Create(context.TODO(), deploymentSpec, metav1.CreateOptions{})
-		if err != nil {
-			wrappedErr := fmt.Errorf("unable create Deployment: %s", err.Error())
-			log.Println(wrappedErr)
-			http.Error(w, wrappedErr.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		log.Printf("Deployment created: %s.%s\n", request.Service, namespace)
-
-		service := factory.Client.CoreV1().Services(namespace)
-		serviceSpec, err := makeServiceSpec(request, factory)
-		if err != nil {
-			wrappedErr := fmt.Errorf("failed create Service spec: %s", err.Error())
-			log.Println(wrappedErr)
-			http.Error(w, wrappedErr.Error(), http.StatusBadRequest)
-			return
-		}
-
-		if _, err = service.Create(context.TODO(), serviceSpec, metav1.CreateOptions{}); err != nil {
-			wrappedErr := fmt.Errorf("failed create Service: %s", err.Error())
-			log.Println(wrappedErr)
-			http.Error(w, wrappedErr.Error(), http.StatusBadRequest)
-			return
-		}
-
-		log.Printf("Service created: %s.%s\n", request.Service, namespace)
-
+		// Hypervisor only supports a single function currently
+		// TODO: Support creating functions
 		w.WriteHeader(http.StatusAccepted)
 	}
 }

@@ -6,9 +6,8 @@ package handlers
 
 import (
 	"encoding/json"
-	"fmt"
-	"log"
 	"net/http"
+	"time"
 
 	types "github.com/openfaas/faas-provider/types"
 	"k8s.io/apimachinery/pkg/labels"
@@ -22,32 +21,19 @@ import (
 // MakeFunctionReader handler for reading functions deployed in the cluster as deployments.
 func MakeFunctionReader(defaultNamespace string, deploymentLister v1.DeploymentLister) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-
-		q := r.URL.Query()
-		namespace := q.Get("namespace")
-
-		lookupNamespace := defaultNamespace
-
-		if len(namespace) > 0 {
-			lookupNamespace = namespace
-		}
-
-		if lookupNamespace != defaultNamespace {
-			http.Error(w, fmt.Sprintf("valid namespaces are: %s", defaultNamespace), http.StatusBadRequest)
-			return
-		}
-
-		if lookupNamespace == "kube-system" {
-			http.Error(w, "unable to list within the kube-system namespace", http.StatusUnauthorized)
-			return
-		}
-
-		functions, err := getServiceList(lookupNamespace, deploymentLister)
-		if err != nil {
-			log.Println(err)
-			w.WriteHeader(http.StatusInternalServerError)
-			w.Write([]byte(err.Error()))
-			return
+		functions := []types.FunctionStatus{
+			{
+				Name:              "calc-pi",
+				Replicas:          1,
+				Image:             "None",
+				AvailableReplicas: 1,
+				InvocationCount:   0,
+				Labels:            &(map[string]string{}),
+				Annotations:       &(map[string]string{}),
+				Namespace:         "openfaas",
+				Secrets:           []string{},
+				CreatedAt:         time.Now(),
+			},
 		}
 
 		functionBytes, err := json.Marshal(functions)

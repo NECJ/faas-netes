@@ -1,11 +1,11 @@
 .PHONY: build local push namespaces install charts start-kind stop-kind build-buildx render-charts verify-charts charts-only
-IMG_NAME?=faas-netes
+IMG_NAME?=faas-netes-hypervisor
 
 VERBOSE?=false
 
 TAG?=latest
-OWNER?=openfaas
-SERVER?=ghcr.io
+OWNER?=t7r4r6l6
+SERVER?=public.ecr.aws
 export DOCKER_CLI_EXPERIMENTAL=enabled
 export DOCKER_BUILDKIT=1
 

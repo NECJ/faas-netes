@@ -42,6 +42,8 @@ import (
 )
 
 func main() {
+	log.Default().Printf("EEEEEEEEEEEEEEEEEEEEE")
+	log.Printf("EEEEEEEEEEEEEEEEEEEEE")
 	var kubeconfig string
 	var masterURL string
 	var (

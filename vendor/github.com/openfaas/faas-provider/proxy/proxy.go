@@ -140,15 +140,14 @@ func proxyRequest(w http.ResponseWriter, originalReq *http.Request, proxyClient 
 		return
 	}
 
-	functionAddr, resolveErr := resolver.Resolve(functionName)
-	if resolveErr != nil {
-		// TODO: Should record the 404/not found error in Prometheus.
-		log.Printf("resolver error: no endpoints for %s: %s\n", functionName, resolveErr.Error())
-		httputil.Errorf(w, http.StatusServiceUnavailable, "No endpoints available for: %s.", functionName)
-		return
+	functionAddr := url.URL{
+		Scheme: "http",
+		// Host:   "openfaas-hypervisor-service",
+		Host:       "openfaas-hypervisor-service",
+		ForceQuery: false,
 	}
 
-	proxyReq, err := buildProxyRequest(originalReq, functionAddr, pathVars["params"])
+	proxyReq, err := buildProxyRequest(originalReq, functionAddr, "/invoke")
 	if err != nil {
 		httputil.Errorf(w, http.StatusInternalServerError, "Failed to resolve service: %s.", functionName)
 		return

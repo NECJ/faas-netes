@@ -1,0 +1,29 @@
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: openfaas-hypervisor
+  labels:
+    app.kubernetes.io/name: openfaas-hypervisor
+spec:
+  containers:
+  - name: openfaas-hypervisor
+    image: public.ecr.aws/t7r4r6l6/openfaas-hypervisor:latest
+    imagePullPolicy: Always
+    ports:
+    - containerPort: 8080
+    securityContext:
+      privileged: true
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: openfaas-hypervisor-service
+spec:
+  selector:
+    app.kubernetes.io/name: openfaas-hypervisor
+  ports:
+    - protocol: TCP
+      port: 8080
+      targetPort: 8080
