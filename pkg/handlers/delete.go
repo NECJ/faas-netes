@@ -19,7 +19,7 @@ import (
 // MakeDeleteHandler delete a function
 func MakeDeleteHandler(defaultNamespace string, clientset *kubernetes.Clientset) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		// Hypervisor only supports a single function currently
+		// Hypervisor only supports pre-compiled functions already stored on hypervisor
 		// TODO: Support deleting functions
 		w.WriteHeader(http.StatusAccepted)
 	}

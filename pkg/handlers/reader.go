@@ -5,15 +5,13 @@
 package handlers
 
 import (
-	"encoding/json"
+	"io/ioutil"
 	"net/http"
-	"time"
 
 	types "github.com/openfaas/faas-provider/types"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/selection"
 	v1 "k8s.io/client-go/listers/apps/v1"
-	glog "k8s.io/klog"
 
 	"github.com/openfaas/faas-netes/pkg/k8s"
 )
@@ -21,32 +19,12 @@ import (
 // MakeFunctionReader handler for reading functions deployed in the cluster as deployments.
 func MakeFunctionReader(defaultNamespace string, deploymentLister v1.DeploymentLister) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		functions := []types.FunctionStatus{
-			{
-				Name:              "calc-pi",
-				Replicas:          1,
-				Image:             "None",
-				AvailableReplicas: 1,
-				InvocationCount:   0,
-				Labels:            &(map[string]string{}),
-				Annotations:       &(map[string]string{}),
-				Namespace:         "openfaas",
-				Secrets:           []string{},
-				CreatedAt:         time.Now(),
-			},
-		}
-
-		functionBytes, err := json.Marshal(functions)
-		if err != nil {
-			glog.Errorf("Failed to marshal functions: %s", err.Error())
-			w.WriteHeader(http.StatusInternalServerError)
-			w.Write([]byte("Failed to marshal functions"))
-			return
-		}
+		resp, _ := http.Get("http://openfaas-hypervisor-service:8080/system/functions")
+		body, _ := ioutil.ReadAll(resp.Body)
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		w.Write(functionBytes)
+		w.Write(body)
 	}
 }
 

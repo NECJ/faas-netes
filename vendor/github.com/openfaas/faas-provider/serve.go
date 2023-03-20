@@ -79,7 +79,6 @@ func Serve(handlers *types.FaaSHandlers, config *types.FaaSConfig) {
 
 	proxyHandler := handlers.FunctionProxy
 
-	//
 	// Open endpoints
 	r.HandleFunc("/function/{name:["+NameExpression+"]+}", proxyHandler)
 	r.HandleFunc("/function/{name:["+NameExpression+"]+}/", proxyHandler)

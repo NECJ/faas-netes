@@ -19,6 +19,8 @@ import (
 // MakeUpdateHandler update specified function
 func MakeUpdateHandler(defaultNamespace string, factory k8s.FunctionFactory) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		// Hypervisor only supports pre-compiled functions already stored on hypervisor
+		// TODO: Support updating functions
 		w.WriteHeader(http.StatusAccepted)
 	}
 }

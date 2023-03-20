@@ -5,45 +5,30 @@
 package handlers
 
 import (
-	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"net/http"
-	"time"
 
+	"github.com/gorilla/mux"
 	"github.com/openfaas/faas-netes/pkg/k8s"
 	types "github.com/openfaas/faas-provider/types"
 	"k8s.io/apimachinery/pkg/api/errors"
 	v1 "k8s.io/client-go/listers/apps/v1"
-	glog "k8s.io/klog"
 )
 
 // MakeReplicaReader reads the amount of replicas for a deployment
 func MakeReplicaReader(defaultNamespace string, lister v1.DeploymentLister) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		function := types.FunctionStatus{
-			Name:              "calc-pi",
-			Replicas:          1,
-			Image:             "None",
-			AvailableReplicas: 1,
-			InvocationCount:   0,
-			Labels:            &(map[string]string{}),
-			Annotations:       &(map[string]string{}),
-			Namespace:         "openfaas",
-			Secrets:           []string{},
-			CreatedAt:         time.Now(),
-		}
+		vars := mux.Vars(r)
 
-		functionBytes, err := json.Marshal(function)
-		if err != nil {
-			glog.Errorf("Failed to marshal function: %s", err.Error())
-			w.WriteHeader(http.StatusInternalServerError)
-			w.Write([]byte("Failed to marshal function"))
-			return
-		}
+		functionName := vars["name"]
+
+		resp, _ := http.Get("http://openfaas-hypervisor-service:8080/system/functions/" + functionName)
+		body, _ := ioutil.ReadAll(resp.Body)
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		w.Write(functionBytes)
+		w.Write(body)
 	}
 }
 
