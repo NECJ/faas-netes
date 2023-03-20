@@ -141,13 +141,12 @@ func proxyRequest(w http.ResponseWriter, originalReq *http.Request, proxyClient 
 	}
 
 	functionAddr := url.URL{
-		Scheme: "http",
-		// Host:   "openfaas-hypervisor-service",
+		Scheme:     "http",
 		Host:       "openfaas-hypervisor-service",
 		ForceQuery: false,
 	}
 
-	proxyReq, err := buildProxyRequest(originalReq, functionAddr, "/invoke")
+	proxyReq, err := buildProxyRequest(originalReq, functionAddr, "/function/"+functionName)
 	if err != nil {
 		httputil.Errorf(w, http.StatusInternalServerError, "Failed to resolve service: %s.", functionName)
 		return

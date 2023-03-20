@@ -13,6 +13,8 @@ import (
 // MakeReplicaUpdater updates desired count of replicas
 func MakeReplicaUpdater(defaultNamespace string, clientset *kubernetes.Clientset) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		// Hypervisor only supports pre-compiled functions already stored on hypervisor
+		// TODO: Support updating functions
 		w.WriteHeader(http.StatusAccepted)
 	}
 }

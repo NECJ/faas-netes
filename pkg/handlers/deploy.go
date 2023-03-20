@@ -29,7 +29,7 @@ const initialReplicasCount = 1
 // MakeDeployHandler creates a handler to create new functions in the cluster
 func MakeDeployHandler(functionNamespace string, factory k8s.FunctionFactory) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		// Hypervisor only supports a single function currently
+		// Hypervisor only supports pre-compiled functions already stored on hypervisor
 		// TODO: Support creating functions
 		w.WriteHeader(http.StatusAccepted)
 	}
