@@ -8,7 +8,7 @@ metadata:
 spec:
   containers:
   - name: openfaas-hypervisor
-    image: public.ecr.aws/t7r4r6l6/openfaas-hypervisor:microvm
+    image: public.ecr.aws/t7r4r6l6/openfaas-hypervisor:{{ .Values.hypervisorType }}
     imagePullPolicy: Always
     ports:
     - containerPort: 8080

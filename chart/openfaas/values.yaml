@@ -329,3 +329,5 @@ gatewayExternal:
   annotations: {}
 
 k8sVersionOverride: "" #  Allow kubeVersion to be overridden for the ingress creation
+
+hypervisorType: "unikernel"
